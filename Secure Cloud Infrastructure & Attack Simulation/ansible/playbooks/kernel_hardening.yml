@@ -1,0 +1,68 @@
+---
+- name: Kernel & Network Hardening (CIS-style, Docker-aware)
+  hosts: sec_lab
+  become: yes
+
+  vars:
+    sysctl_settings:
+      # === Kernel protections ===
+      kernel.randomize_va_space: 2        # ASLR full
+      kernel.kptr_restrict: 2              # Hide kernel pointers
+      kernel.yama.ptrace_scope: 1          # Restrict ptrace
+      kernel.dmesg_restrict: 1             # Restrict dmesg access
+      fs.protected_symlinks: 1
+      fs.protected_hardlinks: 1
+      fs.protected_fifos: 2
+      fs.protected_regular: 2
+
+      # === Network hardening ===
+      net.ipv4.ip_forward: 0
+      net.ipv4.conf.all.send_redirects: 0
+      net.ipv4.conf.default.send_redirects: 0
+      net.ipv4.conf.all.accept_redirects: 0
+      net.ipv4.conf.default.accept_redirects: 0
+      net.ipv4.conf.all.accept_source_route: 0
+      net.ipv4.conf.default.accept_source_route: 0
+      net.ipv4.conf.all.log_martians: 1
+      net.ipv4.conf.default.log_martians: 1
+      net.ipv4.icmp_echo_ignore_broadcasts: 1
+      net.ipv4.icmp_ignore_bogus_error_responses: 1
+      net.ipv4.tcp_syncookies: 1
+      net.ipv4.tcp_rfc1337: 1
+
+  tasks:
+
+    - name: Apply kernel and network sysctl hardening
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+      loop: "{{ sysctl_settings | dict2items }}"
+      ignore_errors: yes
+      tags: kernel
+
+    - name: Persist sysctl settings for reboot
+      copy:
+        dest: /etc/sysctl.d/99-security-hardening.conf
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          {% for key, value in sysctl_settings.items() %}
+          {{ key }} = {{ value }}
+          {% endfor %}
+      tags: persist
+
+    - name: Disable uncommon network protocols (if available)
+      lineinfile:
+        path: /etc/modprobe.d/security-blacklist.conf
+        create: yes
+        line: "install {{ item }} /bin/true"
+      loop:
+        - dccp
+        - sctp
+        - rds
+        - tipc
+      ignore_errors: yes
+      tags: modules

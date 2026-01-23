@@ -1,0 +1,53 @@
+---
+- name: Further security hardening for sec_lab
+  hosts: sec_lab
+  become: yes
+  tasks:
+
+    - name: Ensure secuser has passwordless sudo
+      lineinfile:
+        path: /etc/sudoers
+        regexp: '^secuser ALL='
+        line: 'secuser ALL=(ALL) NOPASSWD:ALL'
+        state: present
+        validate: 'visudo -cf %s'
+
+    - name: Ensure auditd is running
+      service:
+        name: auditd
+        state: started
+        enabled: yes
+
+    - name: Ensure audit rules for sudo and ssh commands
+      copy:
+        dest: /etc/audit/rules.d/sec_lab.rules
+        content: |
+          -w /etc/sudoers -p wa -k sudo_changes
+          -w /etc/sudoers.d/ -p wa -k sudo_includes
+          -w /usr/bin/sudo -p x -k sudo_command
+          -w /etc/ssh/sshd_config -p wa -k ssh_config_changes
+      notify:
+        - Reload auditd
+
+    - name: Remove unnecessary packages
+      apt:
+        name:
+          - telnet
+          - ftp
+          - rsh-client
+        state: absent
+        purge: yes
+        autoremove: yes
+        update_cache: yes
+
+    - name: Ensure fail2ban is running (SSH protection)
+      service:
+        name: fail2ban
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Reload auditd
+      service:
+        name: auditd
+        state: reloaded

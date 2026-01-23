@@ -1,0 +1,45 @@
+---
+- name: SSH hardening
+  hosts: sec_lab
+  become: yes
+  tasks:
+
+    - name: Disable root login via SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PermitRootLogin'
+        line: 'PermitRootLogin no'
+        state: present
+
+    - name: Disable password authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        state: present
+
+    - name: Install fail2ban and auditd
+      apt:
+        name:
+          - fail2ban
+          - auditd
+        state: present
+        update_cache: yes
+
+    - name: Ensure UFW firewall is installed
+      apt:
+        name: ufw
+        state: present
+        update_cache: yes
+
+    - name: "Enable UFW firewall"
+      ufw:
+        state: enabled
+        policy: deny
+      ignore_errors: yes
+
+    - name: "Allow SSH through UFW"
+      ufw:
+        rule: allow
+        name: OpenSSH
+      ignore_errors: yes

@@ -1,0 +1,46 @@
+---
+# master_hardening.yml
+# Full Mid-Level Security Hardening (Portfolio-ready)
+
+# Важно: всеки от включените playbooks трябва да има собствен hosts: и become: да ги изпълнява правилно.
+
+- import_playbook: ssh_hardening.yml
+- import_playbook: system_hardening.yml
+- import_playbook: kernel_hardening.yml
+- import_playbook: audit_hardening.yml
+- import_playbook: aide_hardening.yml
+- import_playbook: fail2ban_hardening.yml
+
+# Отчет за портфолио
+- name: Collect system hardening report
+  hosts: sec_lab
+  become: yes
+  vars:
+    report_dir: "/home/secuser/ansible_logs"
+  tasks:
+    - name: Create logs directory
+      file:
+        path: "{{ report_dir }}"
+        state: directory
+        owner: secuser
+        group: secuser
+        mode: '0755'
+
+    - name: Collect basic system info
+      shell: |
+        echo "=== HOST INFO ===" > {{ report_dir }}/hardening_report.txt
+        uname -a >> {{ report_dir }}/hardening_report.txt
+        echo "\n=== Active Sysctl Settings ===" >> {{ report_dir }}/hardening_report.txt
+        sysctl -a >> {{ report_dir }}/hardening_report.txt
+        echo "\n=== Audit Rules ===" >> {{ report_dir }}/hardening_report.txt
+        auditctl -l >> {{ report_dir }}/hardening_report.txt || echo "Audit not loaded" >> {{ report_dir }}/hardening_report.txt
+        echo "\n=== Fail2Ban Status ===" >> {{ report_dir }}/hardening_report.txt
+        fail2ban-client status sshd || echo "Fail2Ban not running" >> {{ report_dir }}/hardening_report.txt
+        echo "\n=== AIDE Status ===" >> {{ report_dir }}/hardening_report.txt
+        aide --check || echo "AIDE check skipped" >> {{ report_dir }}/hardening_report.txt
+      args:
+        executable: /bin/bash
+
+    - name: Display report location
+      debug:
+        msg: "Hardening report saved to {{ report_dir }}/hardening_report.txt"

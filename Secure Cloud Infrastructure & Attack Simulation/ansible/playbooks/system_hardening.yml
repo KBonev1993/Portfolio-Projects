@@ -1,0 +1,96 @@
+---
+- name: System hardening (cron, users, sudo, filesystem)
+  hosts: sec_lab
+  become: yes
+
+  tasks:
+
+    # --------------------------------------------------
+    # 1. CRON HARDENING
+    # --------------------------------------------------
+
+    - name: Ensure cron allow exists
+      copy:
+        dest: /etc/cron.allow
+        content: |
+          root
+          secuser
+        owner: root
+        group: root
+        mode: '0640'
+
+    - name: Remove cron deny file if exists
+      file:
+        path: /etc/cron.deny
+        state: absent
+
+    # --------------------------------------------------
+    # 2. USER & SHELL HARDENING
+    # --------------------------------------------------
+
+    - name: Ensure secuser has bash shell
+      user:
+        name: secuser
+        shell: /bin/bash
+
+    - name: Lock root account password
+      user:
+        name: root
+        password_lock: yes
+
+    # --------------------------------------------------
+    # 3. FILESYSTEM HARDENING
+    # --------------------------------------------------
+
+    - name: Secure /etc/passwd permissions
+      file:
+        path: /etc/passwd
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Secure /etc/shadow permissions
+      file:
+        path: /etc/shadow
+        owner: root
+        group: shadow
+        mode: '0640'
+
+    - name: Secure /etc/group permissions
+      file:
+        path: /etc/group
+        owner: root
+        group: root
+        mode: '0644'
+
+    # --------------------------------------------------
+    # 4. SUDO HARDENING + LOGGING
+    # --------------------------------------------------
+
+    - name: Ensure sudo logs all commands
+      copy:
+        dest: /etc/sudoers.d/logging
+        content: |
+          Defaults logfile="/var/log/sudo.log"
+          Defaults log_input,log_output
+        owner: root
+        group: root
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
+    # --------------------------------------------------
+    # 5. DISABLE CORE DUMPS (INFO LEAK PREVENTION)
+    # --------------------------------------------------
+
+    - name: Disable core dumps via limits.conf
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: '* hard core 0'
+        state: present
+
+    - name: Disable core dumps via sysctl
+      sysctl:
+        name: fs.suid_dumpable
+        value: '0'
+        state: present
+        reload: yes

@@ -1,0 +1,74 @@
+---
+- name: Audit & Detection Hardening (Mid-level, Docker-aware)
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    audit_rules_file: /etc/audit/rules.d/hardening.rules
+
+  tasks:
+
+    - name: Ensure auditd is installed
+      apt:
+        name:
+          - auditd
+          - audispd-plugins
+        state: present
+        update_cache: true
+
+    - name: Ensure auditd service is enabled and running
+      service:
+        name: auditd
+        state: started
+        enabled: true
+
+    - name: Deploy audit hardening rules
+      copy:
+        dest: "{{ audit_rules_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          ## === Identity & Privilege Changes ===
+          -w /etc/passwd -p wa -k identity
+          -w /etc/group -p wa -k identity
+          -w /etc/shadow -p wa -k identity
+          -w /etc/gshadow -p wa -k identity
+          -w /etc/sudoers -p wa -k sudo
+          -w /etc/sudoers.d/ -p wa -k sudo
+
+          ## === SSH & Authentication ===
+          -w /etc/ssh/sshd_config -p wa -k ssh
+          -w /var/log/auth.log -p wa -k auth
+
+          ## === System Time Changes ===
+          -a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change
+          -a always,exit -F arch=b64 -S clock_settime -k time-change
+          -w /etc/localtime -p wa -k time-change
+
+          ## === Kernel & Module Changes ===
+          -w /sbin/insmod -p x -k kernel-modules
+          -w /sbin/rmmod -p x -k kernel-modules
+          -w /sbin/modprobe -p x -k kernel-modules
+
+          ## === Process Execution (high-value) ===
+          -a always,exit -F arch=b64 -S execve -k exec
+
+          ## === Immutable Audit Configuration ===
+          -e 2
+
+    - name: Load audit rules (safe, no reboot)
+      command: augenrules --load
+      become: true
+      ignore_errors: true
+
+    - name: Verify audit rules are active
+      command: auditctl -l
+      register: audit_rules
+      changed_when: false
+      failed_when: false
+
+    - name: Debug active audit rules (visibility)
+      debug:
+        var: audit_rules.stdout_lines

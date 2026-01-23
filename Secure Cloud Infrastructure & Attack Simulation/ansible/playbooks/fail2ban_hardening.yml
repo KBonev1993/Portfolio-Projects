@@ -1,0 +1,62 @@
+---
+- name: Fail2Ban Hardening (SSH brute-force protection, Mid-level, Docker-aware)
+  hosts: sec_lab
+  become: true
+
+  tasks:
+    - name: Ensure Fail2Ban is installed
+      apt:
+        name: fail2ban
+        state: present
+        update_cache: yes
+
+    - name: Ensure Fail2Ban service is enabled
+      service:
+        name: fail2ban
+        state: started
+        enabled: true
+      ignore_errors: yes  # allow fail in Docker if backend cannot run
+
+    - name: Create fake auth.log for Docker
+      file:
+        path: /var/log/auth.log
+        state: touch
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Deploy Fail2Ban jail.local (Docker-aware)
+      copy:
+        dest: /etc/fail2ban/jail.local
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          [DEFAULT]
+          bantime  = 1h
+          findtime = 10m
+          maxretry = 5
+          backend  = systemd
+          banaction = iptables-multiport
+
+          [sshd]
+          enabled  = true
+          port     = 2222
+          filter   = sshd
+          logpath  = /var/log/auth.log
+          maxretry = 3
+
+    - name: Restart Fail2Ban to apply configuration (Docker-safe)
+      service:
+        name: fail2ban
+        state: restarted
+      ignore_errors: yes
+
+    - name: Verify Fail2Ban sshd jail (Docker-safe)
+      command: fail2ban-client status sshd
+      register: f2b_status
+      ignore_errors: yes
+
+    - name: Show Fail2Ban sshd status
+      debug:
+        var: f2b_status.stdout_lines

@@ -1,0 +1,54 @@
+---
+- name: Collect full hardening report
+  hosts: sec-lab-host
+  gather_facts: yes
+  become: yes
+
+  vars:
+    report_file: "/home/secuser/ansible_logs/full_hardening_report.txt"
+
+  tasks:
+    - name: Ensure report directory exists
+      file:
+        path: "{{ report_file | dirname }}"
+        state: directory
+        mode: '0755'
+
+    - name: Collect SSH hardening status
+      shell: |
+        echo "=== SSH Hardening ===" > {{ report_file }}
+        echo "PermitRootLogin: $(grep PermitRootLogin /etc/ssh/sshd_config || echo 'Not found')" >> {{ report_file }}
+        echo "PasswordAuthentication: $(grep PasswordAuthentication /etc/ssh/sshd_config || echo 'Not found')" >> {{ report_file }}
+
+    - name: Collect ASLR status
+      shell: |
+        echo -e "\n=== ASLR ===" >> {{ report_file }}
+        cat /proc/sys/kernel/randomize_va_space >> {{ report_file }}
+
+    - name: Collect sysctl hardening
+      shell: |
+        echo -e "\n=== Sysctl Settings ===" >> {{ report_file }}
+        sysctl -a | grep -E "kernel|fs|net" >> {{ report_file }}
+
+    - name: Collect auditd status
+      shell: |
+        echo -e "\n=== Auditd ===" >> {{ report_file }}
+        pgrep auditd && echo "auditd running" || echo "auditd not running" >> {{ report_file }}
+
+    - name: Collect AIDE database info
+      shell: |
+        echo -e "\n=== AIDE ===" >> {{ report_file }}
+        ls -lh /var/lib/aide/ >> {{ report_file }}
+        aide --check --config /etc/aide/aide.conf >> {{ report_file }} || echo "AIDE check failed" >> {{ report_file }}
+
+    - name: Collect Fail2Ban status
+      shell: |
+        echo -e "\n=== Fail2Ban ===" >> {{ report_file }}
+        fail2ban-client status >> {{ report_file }} || echo "Fail2Ban not running" >> {{ report_file }}
+
+    - name: Set ownership of report
+      file:
+        path: "{{ report_file }}"
+        owner: secuser
+        group: secuser
+        mode: '0644'

@@ -1,0 +1,48 @@
+---
+- name: Validate system hardening state (Docker-aware)
+  hosts: all
+  gather_facts: yes
+  become: yes
+
+  tasks:
+
+    - name: Check SSH root login disabled
+      command: grep '^PermitRootLogin no' /etc/ssh/sshd_config
+      register: ssh_root
+      failed_when: ssh_root.rc != 0
+
+    - name: Check password authentication disabled
+      command: grep '^PasswordAuthentication no' /etc/ssh/sshd_config
+      register: ssh_pass
+      failed_when: ssh_pass.rc != 0
+
+    - name: Check ASLR enabled
+      command: cat /proc/sys/kernel/randomize_va_space
+      register: aslr
+      failed_when: aslr.stdout != '2'
+
+    - name: Check auditd binary exists
+      stat:
+        path: /usr/sbin/auditd
+      register: auditd_bin
+
+    - name: Fail if auditd not installed
+      fail:
+        msg: "auditd is not installed!"
+      when: not auditd_bin.stat.exists and ansible_virtualization_type != 'docker'
+
+    - name: Check auditd process running (Docker-safe)
+      shell: pgrep auditd
+      register: auditd_proc
+      ignore_errors: yes
+      failed_when: auditd_proc.rc != 0 and ansible_virtualization_type != 'docker'
+
+    - name: Check AIDE database exists
+      stat:
+        path: /var/lib/aide/aide.db
+      register: aide_db
+
+    - name: Fail if AIDE database missing
+      fail:
+        msg: "AIDE database does not exist!"
+      when: not aide_db.stat.exists

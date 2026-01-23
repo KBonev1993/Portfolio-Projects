@@ -1,0 +1,47 @@
+---
+- name: File Integrity Monitoring with AIDE (Mid-level, Docker-aware)
+  hosts: sec_lab
+  become: yes
+  tasks:
+
+    - name: Ensure AIDE is installed
+      apt:
+        name: aide
+        state: present
+        update_cache: yes
+
+    - name: Ensure AIDE log directory exists
+      file:
+        path: /var/log/aide
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy hardened AIDE configuration
+      copy:
+        src: ../../configs/aide/aide.conf
+        dest: /etc/aide/aide.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Initialize AIDE database only if it doesn't exist
+      command: >
+        /usr/bin/aide --init --config /etc/aide/aide.conf
+      args:
+        creates: /var/lib/aide/aide.db.new
+      register: aide_init
+      changed_when: aide_init.rc == 0
+
+    - name: Move new AIDE database into place if created
+      command: mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+      when: aide_init is changed
+
+    - name: Create daily AIDE integrity check cron job
+      cron:
+        name: "Daily AIDE integrity check"
+        user: root
+        job: "/usr/bin/aide --check --config /etc/aide/aide.conf"
+        minute: "0"
+        hour: "3"
