@@ -1,0 +1,5 @@
+vulnerabilities:
+  - id: CVE-2025-7458
+    reason: "No fixed version available in Debian security repository"
+  - id: CVE-2023-45853
+    reason: "Marked as will_not_fix by upstream vendor"
