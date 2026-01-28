@@ -10,12 +10,6 @@ Designed for **security-first CI/CD**, portfolio presentation, and technical int
 This project demonstrates a fully working **DevSecOps pipeline** that integrates security controls directly into the CI/CD process.  
 It covers **build, test, linting, container security scanning, and artifact reporting**, following real-world DevSecOps best practices.
 
-The pipeline is intentionally designed to be:
-- ✅ Interview-ready
-- ✅ Easy to explain stage-by-stage
-- ✅ Runnable locally with Jenkins + Docker
-- ✅ Clean, readable, and security-focused
-
 ---
 
 ## 🎯 Objectives
